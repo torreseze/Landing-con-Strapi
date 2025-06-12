@@ -12,7 +12,8 @@ async function testStrapiImages() {
       return;
     }
 
-    const url = 'http://localhost:1337/api/landing-pages?filters[slug][$eq]=pagina-principal&populate[dynamicZone][on][layout.navbar][populate]=*&populate[dynamicZone][on][sections.hero][populate]=*&populate[dynamicZone][on][sections.content][populate]=*';
+    const strapiUrl = process.env.NEXT_PUBLIC_STRAPI_URL || 'http://localhost:1337';
+    const url = `${strapiUrl}/api/landing-pages?filters[slug][$eq]=pagina-principal&populate[dynamicZone][on][layout.navbar][populate]=*&populate[dynamicZone][on][sections.hero][populate]=*&populate[dynamicZone][on][sections.content][populate]=*`;
 
     const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
