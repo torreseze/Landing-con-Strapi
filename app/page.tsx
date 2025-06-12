@@ -1,18 +1,13 @@
+import { Metadata } from "next"
 import { Navbar } from "@/components/navbar"
 import { HeroSection } from "@/components/hero-section"
 import { ContentSection } from "@/components/content-section"
 import { getLandingPage } from "@/lib/strapi"
-import {
-  isNavbarComponent,
-  isHeroSectionComponent,
-  isContentSectionComponent,
-  getStrapiImageProps
-} from "@/types/strapi"
-import { Metadata } from "next"
+import { getStrapiImageProps } from "@/types/strapi"
 
 // Metadata optimizada para SEO
 export async function generateMetadata(): Promise<Metadata> {
-  const landingPageResponse = await getLandingPage("pagina-principal")
+  const landingPageResponse = await getLandingPage("landing-page")
   const landingPage = (landingPageResponse.data as unknown as any[])?.[0]
 
   // Fallback si no hay datos
@@ -47,74 +42,76 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  let landingPage: any = null
+  let landingPage: any = null;
 
   try {
     // Obtener data de Strapi
-    const landingPageResponse = await getLandingPage("pagina-principal")
-    landingPage = (landingPageResponse.data as unknown as any[])?.[0]
+    const landingPageResponse = await getLandingPage("landing-page")
+    landingPage = landingPageResponse.data?.attributes
   } catch (error) {
     console.error("Error connecting to Strapi:", error)
     console.log("Using mock data for development...")
   }
 
+  // Datos mock para fallback
+  const mockLandingPage = {
+    title: "DUX Software - Desarrollo de Software a Medida",
+    description: "Empresa líder en desarrollo de software personalizado",
+    dynamicZone: [
+      {
+        __component: "layout.navbar",
+        id: 1,
+        logo: null,
+        logoAlt: "DUX Software",
+        logoHref: "/",
+        logoWidth: 120,
+        logoHeight: 40,
+        navItems: [
+          { id: "home", label: "Inicio", href: "#home" },
+          { id: "solutions", label: "Soluciones", href: "#solutions" },
+          { id: "prices", label: "Precios", href: "#prices" },
+          { id: "resources", label: "Recursos", href: "#resources" },
+          { id: "about", label: "Nosotros", href: "#about" }
+        ],
+        ctaButtons: [
+          { id: "cta-primary", label: "Comenzar", href: "#contact", variant: "default" },
+          { id: "cta-secondary", label: "Demo", href: "#demo", variant: "outline" }
+        ],
+        backgroundColor: "white"
+      },
+      {
+        __component: "sections.hero",
+        id: 2,
+        title: "Desarrollamos Software que Impulsa tu Negocio",
+        subtitle: "Soluciones tecnológicas a medida",
+        description: "Creamos aplicaciones web, móviles y sistemas empresariales que transforman tu visión en realidad digital.",
+        ctaButtons: [
+          { id: "hero-primary", label: "Comenzar Proyecto", href: "#contact", variant: "default" },
+          { id: "hero-secondary", label: "Ver Casos", href: "#cases", variant: "outline" }
+        ],
+        backgroundColor: "gradient",
+        textAlignment: "center"
+      }
+    ]
+  };
+
   // Si no hay datos de Strapi, usar datos mock
   if (!landingPage || !landingPage.dynamicZone) {
     console.log("Using fallback mock data")
-    landingPage = {
-      title: "DUX Software - Desarrollo de Software a Medida",
-      description: "Empresa líder en desarrollo de software personalizado",
-      dynamicZone: [
-        {
-          __component: "layout.navbar",
-          id: 1,
-          logo: null,
-          logoAlt: "DUX Software",
-          logoHref: "/",
-          logoWidth: 120,
-          logoHeight: 40,
-          navItems: [
-            { id: "home", label: "Inicio", href: "#home" },
-            { id: "solutions", label: "Soluciones", href: "#solutions" },
-            { id: "prices", label: "Precios", href: "#prices" },
-            { id: "resources", label: "Recursos", href: "#resources" },
-            { id: "about", label: "Nosotros", href: "#about" }
-          ],
-          ctaButtons: [
-            { id: "cta-primary", label: "Comenzar", href: "#contact", variant: "default" },
-            { id: "cta-secondary", label: "Demo", href: "#demo", variant: "outline" }
-          ],
-          backgroundColor: "white"
-        },
-        {
-          __component: "sections.hero",
-          id: 2,
-          title: "Desarrollamos Software que Impulsa tu Negocio",
-          subtitle: "Soluciones tecnológicas a medida",
-          description: "Creamos aplicaciones web, móviles y sistemas empresariales que transforman tu visión en realidad digital.",
-          ctaButtons: [
-            { id: "hero-primary", label: "Comenzar Proyecto", href: "#contact", variant: "default" },
-            { id: "hero-secondary", label: "Ver Casos", href: "#cases", variant: "outline" }
-          ],
-          backgroundColor: "gradient",
-          textAlignment: "center"
-        }
-      ]
-    }
   }
 
+  const actualLandingPage = landingPage || mockLandingPage;
+
   // Filtrar componentes por tipo
-  const navbarComponents = landingPage.dynamicZone.filter(
+  const navbarComponents = actualLandingPage.dynamicZone.filter(
     (component: any) => component.__component === "layout.navbar"
   )
 
-
-
-
-  const heroComponents = landingPage.dynamicZone.filter(
+  const heroComponents = actualLandingPage.dynamicZone.filter(
     (component: any) => component.__component === "sections.hero"
   )
-  const contentComponents = landingPage.dynamicZone.filter(
+
+  const contentComponents = actualLandingPage.dynamicZone.filter(
     (component: any) => component.__component === "sections.content"
   )
 
@@ -129,7 +126,7 @@ export default async function HomePage() {
             "@type": "Organization",
             "name": "DUX Software",
             "url": "https://duxsoftware.com",
-            "description": landingPage.description,
+            "description": actualLandingPage.description,
             "sameAs": [
               "https://linkedin.com/company/duxsoftware",
               "https://github.com/duxsoftware"

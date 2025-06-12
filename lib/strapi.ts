@@ -41,12 +41,20 @@ async function fetchAPI(path: string, options: RequestInit = {}) {
 export async function getLandingPage(slug: string): Promise<StrapiLandingPageResponse> {
   const token = process.env.STRAPI_API_TOKEN
 
+
+
   if (!token) {
+    console.error('STRAPI_API_TOKEN no está configurado')
     throw new Error('STRAPI_API_TOKEN no está configurado')
   }
 
-  // Usar populate con sintaxis "on" para dynamic zones con componentes - Strapi v5
-  const url = `${STRAPI_URL}/api/landing-pages?filters[slug][$eq]=${slug}&populate[dynamicZone][on][layout.navbar][populate]=*&populate[dynamicZone][on][sections.hero][populate]=*&populate[dynamicZone][on][sections.content][populate]=*`
+  if (!STRAPI_URL) {
+    console.error('NEXT_PUBLIC_STRAPI_URL no está configurado')
+    throw new Error('NEXT_PUBLIC_STRAPI_URL no está configurado')
+  }
+
+  // Strapi v5 - populate profundo
+  const url = `${STRAPI_URL}/api/landing-pages?filters[slug][$eq]=${slug}&populate=*`
 
   try {
     const response = await fetch(url, {
@@ -54,7 +62,8 @@ export async function getLandingPage(slug: string): Promise<StrapiLandingPageRes
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 60 }
+      next: { revalidate: 60 },
+      cache: 'no-store' // Forzar no usar cache
     })
 
     if (!response.ok) {
@@ -62,9 +71,20 @@ export async function getLandingPage(slug: string): Promise<StrapiLandingPageRes
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    const data = await response.json()
-    
-    return data
+          const data = await response.json()
+      
+      // Strapi v5 devuelve array directamente, convertir a formato v4 para compatibilidad
+      if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+        return {
+          data: {
+            id: data.data[0].id,
+            attributes: data.data[0]
+          },
+          meta: data.meta
+        }
+      }
+      
+      return data
   } catch (error) {
     console.error('Error fetching landing page:', error)
     throw error
