@@ -92,7 +92,7 @@ export async function getLandingPage(slug: string): Promise<StrapiLandingPageRes
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      next: { revalidate: 3600 }, // Revalidar cada hora
+      next: { revalidate: 60 }, // Cache de 60 segundos - balance perfecto
       signal: controller.signal,
       // Removido cache: 'no-store' para permitir SSG
     })
