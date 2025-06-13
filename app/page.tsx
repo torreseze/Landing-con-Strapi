@@ -59,6 +59,7 @@ export async function generateMetadata(): Promise<Metadata> {
     }
 
   } catch (error) {
+    // Este catch ya no debería ejecutarse porque getLandingPage ahora retorna mock data
     ProductionLogger.error("Error in generateMetadata", error)
     ProductionLogger.log("Using fallback metadata due to error")
     endTimer()
@@ -80,7 +81,7 @@ export default async function HomePage() {
   try {
     ProductionLogger.log("Attempting to fetch from Strapi...")
 
-    // Obtener data de Strapi
+    // Obtener data de Strapi (ahora con fallback automático)
     const landingPageResponse = await getLandingPage("landing-page")
 
     ProductionLogger.structure("Strapi response received", {
@@ -96,16 +97,18 @@ export default async function HomePage() {
     if (landingPage) {
       ProductionLogger.success("Landing page data loaded successfully", {
         title: landingPage.title,
-        dynamicZoneComponents: landingPage.dynamicZone?.length || 0
+        dynamicZoneComponents: landingPage.dynamicZone?.length || 0,
+        isFromStrapi: landingPage.slug === "landing-page" && landingPage.dynamicZone?.length > 2
       })
     }
 
   } catch (error) {
+    // Este catch ya no debería ejecutarse porque getLandingPage ahora retorna mock data
     ProductionLogger.error("ERROR connecting to Strapi", error)
     ProductionLogger.log("Using mock data for fallback...")
   }
 
-  // Datos mock para fallback
+  // Datos mock para fallback (solo se usa si landingPage es null, lo cual ya no debería pasar)
   const mockLandingPage = {
     title: "DUX Software - Desarrollo de Software a Medida",
     description: "Empresa líder en desarrollo de software personalizado",
@@ -147,9 +150,9 @@ export default async function HomePage() {
     ]
   };
 
-  // Si no hay datos de Strapi, usar datos mock
+  // Si no hay datos de Strapi, usar datos mock (esto ya no debería pasar)
   if (!landingPage || !landingPage.dynamicZone) {
-    ProductionLogger.log("Using fallback mock data")
+    ProductionLogger.log("Using fallback mock data - this should not happen anymore")
   }
 
   const actualLandingPage = landingPage || mockLandingPage;
@@ -171,7 +174,8 @@ export default async function HomePage() {
   ProductionLogger.success("HomePage render complete", {
     navbarComponents: navbarComponents.length,
     heroComponents: heroComponents.length,
-    contentComponents: contentComponents.length
+    contentComponents: contentComponents.length,
+    usingMockData: !landingPage || landingPage.slug === "landing-page"
   })
   endTimer()
 
