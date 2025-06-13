@@ -72,8 +72,8 @@ export async function getLandingPage(slug: string): Promise<StrapiLandingPageRes
     return getMockLandingPage()
   }
 
-  // Strapi v5 - populate profundo
-  const url = `${STRAPI_URL}/api/landing-pages?filters[slug][$eq]=${slug}&populate=*`
+  // Strapi v5 - populate profundo para componentes con relaciones
+  const url = `${STRAPI_URL}/api/landing-pages?filters[slug][$eq]=${slug}&populate[dynamicZone][on][layout.navbar][populate]=*&populate[dynamicZone][on][sections.hero][populate]=*&populate[dynamicZone][on][sections.content][populate]=*`
   
   ProductionLogger.httpRequest('GET', url, {
     'Authorization': 'Bearer [HIDDEN]',
@@ -179,7 +179,7 @@ export async function getLandingPage(slug: string): Promise<StrapiLandingPageRes
 // Función para obtener todas las landing pages
 export async function getAllLandingPages(): Promise<StrapiLandingPagesResponse> {
   try {
-    const response = await fetchAPI("/landing-pages?populate=*")
+    const response = await fetchAPI("/landing-pages?populate[dynamicZone][on][layout.navbar][populate]=*&populate[dynamicZone][on][sections.hero][populate]=*&populate[dynamicZone][on][sections.content][populate]=*")
     return response
   } catch (error) {
     console.error("Error fetching all landing pages:", error)
