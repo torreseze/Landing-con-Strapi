@@ -4,53 +4,105 @@ import { HeroSection } from "@/components/hero-section"
 import { ContentSection } from "@/components/content-section"
 import { getLandingPage } from "@/lib/strapi"
 import { getStrapiImageProps } from "@/types/strapi"
+import ProductionLogger from "@/lib/production-logger"
 
 // Metadata optimizada para SEO
 export async function generateMetadata(): Promise<Metadata> {
-  const landingPageResponse = await getLandingPage("landing-page")
-  const landingPage = (landingPageResponse.data as unknown as any[])?.[0]
+  const endTimer = ProductionLogger.startTimer("generateMetadata")
+  ProductionLogger.log("generateMetadata called")
 
-  // Fallback si no hay datos
-  if (!landingPage) {
+  try {
+    ProductionLogger.log("Fetching metadata from Strapi...")
+    const landingPageResponse = await getLandingPage("landing-page")
+
+    ProductionLogger.structure("Metadata response structure", {
+      hasData: !!landingPageResponse.data,
+      dataType: typeof landingPageResponse.data,
+      isArray: Array.isArray(landingPageResponse.data)
+    })
+
+    const landingPage = landingPageResponse.data?.attributes || (landingPageResponse.data as unknown as any[])?.[0]
+
+    // Fallback si no hay datos
+    if (!landingPage) {
+      ProductionLogger.warn("No landing page data found, using fallback metadata")
+      endTimer()
+      return {
+        title: "DUX Software - Desarrollo de Software a Medida",
+        description: "Empresa líder en desarrollo de software personalizado.",
+      }
+    }
+
+    ProductionLogger.success("Metadata generated successfully from Strapi data")
+    endTimer()
+
+    return {
+      title: landingPage.seoTitle || landingPage.title,
+      description: landingPage.seoDescription || landingPage.description,
+      keywords: landingPage.seoKeywords?.join(", "),
+      openGraph: {
+        title: landingPage.seoTitle || landingPage.title,
+        description: landingPage.seoDescription || landingPage.description,
+        type: "website",
+        locale: "es_ES",
+        siteName: "DUX Software"
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: landingPage.seoTitle || landingPage.title,
+        description: landingPage.seoDescription || landingPage.description
+      },
+      robots: {
+        index: true,
+        follow: true
+      }
+    }
+
+  } catch (error) {
+    ProductionLogger.error("Error in generateMetadata", error)
+    ProductionLogger.log("Using fallback metadata due to error")
+    endTimer()
+
     return {
       title: "DUX Software - Desarrollo de Software a Medida",
       description: "Empresa líder en desarrollo de software personalizado.",
     }
   }
-
-  return {
-    title: landingPage.seoTitle || landingPage.title,
-    description: landingPage.seoDescription || landingPage.description,
-    keywords: landingPage.seoKeywords?.join(", "),
-    openGraph: {
-      title: landingPage.seoTitle || landingPage.title,
-      description: landingPage.seoDescription || landingPage.description,
-      type: "website",
-      locale: "es_ES",
-      siteName: "DUX Software"
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: landingPage.seoTitle || landingPage.title,
-      description: landingPage.seoDescription || landingPage.description
-    },
-    robots: {
-      index: true,
-      follow: true
-    }
-  }
 }
 
 export default async function HomePage() {
+  const endTimer = ProductionLogger.startTimer("HomePage render")
   let landingPage: any = null;
 
+  ProductionLogger.log("HomePage component called")
+  ProductionLogger.environment()
+
   try {
+    ProductionLogger.log("Attempting to fetch from Strapi...")
+
     // Obtener data de Strapi
     const landingPageResponse = await getLandingPage("landing-page")
+
+    ProductionLogger.structure("Strapi response received", {
+      hasData: !!landingPageResponse.data,
+      dataType: typeof landingPageResponse.data,
+      hasAttributes: !!landingPageResponse.data?.attributes,
+      hasDynamicZone: !!landingPageResponse.data?.attributes?.dynamicZone,
+      dynamicZoneLength: landingPageResponse.data?.attributes?.dynamicZone?.length || 0
+    })
+
     landingPage = landingPageResponse.data?.attributes
+
+    if (landingPage) {
+      ProductionLogger.success("Landing page data loaded successfully", {
+        title: landingPage.title,
+        dynamicZoneComponents: landingPage.dynamicZone?.length || 0
+      })
+    }
+
   } catch (error) {
-    console.error("Error connecting to Strapi:", error)
-    console.log("Using mock data for development...")
+    ProductionLogger.error("ERROR connecting to Strapi", error)
+    ProductionLogger.log("Using mock data for fallback...")
   }
 
   // Datos mock para fallback
@@ -97,7 +149,7 @@ export default async function HomePage() {
 
   // Si no hay datos de Strapi, usar datos mock
   if (!landingPage || !landingPage.dynamicZone) {
-    console.log("Using fallback mock data")
+    ProductionLogger.log("Using fallback mock data")
   }
 
   const actualLandingPage = landingPage || mockLandingPage;
@@ -114,6 +166,14 @@ export default async function HomePage() {
   const contentComponents = actualLandingPage.dynamicZone.filter(
     (component: any) => component.__component === "sections.content"
   )
+
+  // Log final antes del render
+  ProductionLogger.success("HomePage render complete", {
+    navbarComponents: navbarComponents.length,
+    heroComponents: heroComponents.length,
+    contentComponents: contentComponents.length
+  })
+  endTimer()
 
   return (
     <>

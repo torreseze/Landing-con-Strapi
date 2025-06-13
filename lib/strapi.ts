@@ -4,6 +4,7 @@ import {
   LandingPage,
   DynamicZoneComponent
 } from "@/types/strapi"
+import ProductionLogger from "@/lib/production-logger"
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337"
 const STRAPI_TOKEN = process.env.STRAPI_API_TOKEN
@@ -39,24 +40,45 @@ async function fetchAPI(path: string, options: RequestInit = {}) {
 
 // Función principal para obtener una landing page por slug
 export async function getLandingPage(slug: string): Promise<StrapiLandingPageResponse> {
+  const endTimer = ProductionLogger.startTimer(`getLandingPage(${slug})`)
+  
+  ProductionLogger.log("🔍 getLandingPage called", { slug })
+  ProductionLogger.environment()
+  
   const token = process.env.STRAPI_API_TOKEN
 
-
+  ProductionLogger.debug("Token validation", {
+    exists: !!token,
+    length: token?.length || 0,
+    preview: token?.substring(0, 10) + "..."
+  })
 
   if (!token) {
-    console.error('STRAPI_API_TOKEN no está configurado')
+    ProductionLogger.error('STRAPI_API_TOKEN no está configurado')
     throw new Error('STRAPI_API_TOKEN no está configurado')
   }
 
+  ProductionLogger.debug("URL validation", {
+    url: STRAPI_URL,
+    isValid: !!STRAPI_URL && STRAPI_URL.startsWith('http')
+  })
+
   if (!STRAPI_URL) {
-    console.error('NEXT_PUBLIC_STRAPI_URL no está configurado')
+    ProductionLogger.error('NEXT_PUBLIC_STRAPI_URL no está configurado')
     throw new Error('NEXT_PUBLIC_STRAPI_URL no está configurado')
   }
 
   // Strapi v5 - populate profundo
   const url = `${STRAPI_URL}/api/landing-pages?filters[slug][$eq]=${slug}&populate=*`
+  
+  ProductionLogger.httpRequest('GET', url, {
+    'Authorization': 'Bearer [HIDDEN]',
+    'Content-Type': 'application/json'
+  })
 
   try {
+    ProductionLogger.log("Making fetch request...")
+    
     const response = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -66,27 +88,68 @@ export async function getLandingPage(slug: string): Promise<StrapiLandingPageRes
       cache: 'no-store' // Forzar no usar cache
     })
 
-    if (!response.ok) {
-      console.error('Strapi response error:', response.status, response.statusText)
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
+    ProductionLogger.httpResponse(response.status, response.statusText)
 
-          const data = await response.json()
+    if (!response.ok) {
+      ProductionLogger.error(`Strapi response error: ${response.status} ${response.statusText}`)
       
-      // Strapi v5 devuelve array directamente, convertir a formato v4 para compatibilidad
-      if (data.data && Array.isArray(data.data) && data.data.length > 0) {
-        return {
-          data: {
-            id: data.data[0].id,
-            attributes: data.data[0]
-          },
-          meta: data.meta
-        }
+      // Intentar leer el cuerpo del error
+      try {
+        const errorBody = await response.text()
+        ProductionLogger.error('Error body', errorBody)
+      } catch (e) {
+        ProductionLogger.warn('Could not read error body')
       }
       
-      return data
+      throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`)
+    }
+
+    ProductionLogger.log("Parsing JSON response...")
+    const data = await response.json()
+    
+    ProductionLogger.structure("Parsed data structure", {
+      hasData: !!data.data,
+      dataIsArray: Array.isArray(data.data),
+      dataLength: data.data?.length || 0,
+      hasMeta: !!data.meta,
+      firstItemKeys: data.data?.[0] ? Object.keys(data.data[0]) : []
+    })
+    
+    // Strapi v5 devuelve array directamente, convertir a formato v4 para compatibilidad
+    if (data.data && Array.isArray(data.data) && data.data.length > 0) {
+      ProductionLogger.log("Converting Strapi v5 format to v4 compatibility format")
+      
+      const result = {
+        data: {
+          id: data.data[0].id,
+          attributes: data.data[0]
+        },
+        meta: data.meta
+      }
+      
+      ProductionLogger.success("Conversion successful, returning data")
+      endTimer()
+      return result
+    }
+    
+    ProductionLogger.log("Returning data as-is (no conversion needed)")
+    endTimer()
+    return data
+    
   } catch (error) {
-    console.error('Error fetching landing page:', error)
+    ProductionLogger.error('Error in getLandingPage', error)
+    
+    // Log específico para errores de fetch
+    if (error instanceof TypeError && (error as Error).message.includes('fetch')) {
+      ProductionLogger.warn('Network error detected - possible causes:', [
+        'Strapi server is down',
+        'Network connectivity issues', 
+        'DNS resolution problems',
+        'Firewall blocking the request'
+      ])
+    }
+    
+    endTimer()
     throw error
   }
 }
