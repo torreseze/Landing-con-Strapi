@@ -199,12 +199,36 @@ export async function getAllLandingPages(): Promise<StrapiLandingPagesResponse> 
 
 // Función para obtener solo los slugs (útil para generateStaticParams)
 export async function getLandingPageSlugs(): Promise<string[]> {
+  const endTimer = ProductionLogger.startTimer("getLandingPageSlugs")
+  ProductionLogger.log("getLandingPageSlugs called")
+
   try {
+    // Strapi v5 syntax para obtener solo el campo slug
     const response = await fetchAPI("/landing-pages?fields[0]=slug")
-    return response.data.map((page: any) => page.attributes.slug)
+    
+    ProductionLogger.structure("Slugs response structure", {
+      hasData: !!response.data,
+      dataIsArray: Array.isArray(response.data),
+      dataLength: response.data?.length || 0
+    })
+
+    // Strapi v5 devuelve los datos directamente, no en attributes
+    const slugs = response.data.map((page: any) => {
+      // Intentar tanto el formato v5 como v4 para compatibilidad
+      return page.slug || page.attributes?.slug
+    }).filter(Boolean) // Filtrar valores null/undefined
+
+    ProductionLogger.success("Landing page slugs retrieved", { slugs })
+    endTimer()
+    
+    return slugs.length > 0 ? slugs : ["landing-page"] // Fallback si no hay slugs
   } catch (error) {
-    console.error("Error fetching landing page slugs:", error)
-    return ["home"]
+    ProductionLogger.error("Error fetching landing page slugs", error)
+    ProductionLogger.warn("Returning fallback slugs")
+    endTimer()
+    
+    // Fallback con slugs comunes
+    return ["landing-page", "home", "pricing", "about", "services"]
   }
 }
 
