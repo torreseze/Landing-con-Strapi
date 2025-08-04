@@ -81,11 +81,42 @@ export type StrapiImage = StrapiImageV4 | StrapiImageV5
 
 // Button Component
 export interface CtaButton {
-  id: string
+  ctaButtonId: string
   label: string
   href: string
   variant?: "default" | "outline" | "ghost"
   openInNewTab?: boolean
+}
+
+// Dropdown Navigation Components
+export interface DropdownItem {
+  dropdownItemId: string
+  title: string
+  description: string
+  href: string
+  icon?: string // Nombre del ícono (ej: "LayoutGrid", "BarChart")
+}
+
+export interface DropdownCategory {
+  categoryId: string
+  title: string
+  items: DropdownItem[]
+}
+
+export interface DropdownFooterAction {
+  footerActionId: string
+  label: string
+  href: string
+  icon?: string
+}
+
+export interface NavItem {
+  navItemId: string
+  label: string
+  href?: string
+  hasDropdown?: boolean
+  dropdownCategories?: DropdownCategory[]
+  dropdownFooterActions?: DropdownFooterAction[]
 }
 
 // Dynamic Zone Components
@@ -97,12 +128,8 @@ export interface NavbarComponent {
   logoHref: string
   logoWidth?: number
   logoHeight?: number
-  navItems: Array<{
-    id: string
-    label: string
-    href: string
-  }>
-  ctaButton: CtaButton
+  navItems: NavItem[]
+  ctaButtons: CtaButton[] // Cambió a array para soportar múltiples botones
   backgroundColor: "transparent" | "white" | "blue"
 }
 
@@ -116,6 +143,7 @@ export interface HeroSectionComponent {
   backgroundImage?: StrapiImage
   backgroundColor: "white" | "blue" | "gradient"
   textAlignment: "left" | "center" | "right"
+  bottomImage?: StrapiImage
   seo: {
     h1: boolean
     keywords?: string[]

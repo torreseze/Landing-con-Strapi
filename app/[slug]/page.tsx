@@ -28,13 +28,14 @@ export async function generateStaticParams() {
 }
 
 // Metadata optimizada para SEO dinámico
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-  const endTimer = ProductionLogger.startTimer(`generateMetadata(${params.slug})`)
-  ProductionLogger.log("generateMetadata called", { slug: params.slug })
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const resolvedParams = await params
+  const endTimer = ProductionLogger.startTimer(`generateMetadata(${resolvedParams.slug})`)
+  ProductionLogger.log("generateMetadata called", { slug: resolvedParams.slug })
 
   try {
     ProductionLogger.log("Fetching metadata from Strapi...")
-    const landingPageResponse = await getLandingPage(params.slug)
+    const landingPageResponse = await getLandingPage(resolvedParams.slug)
 
     ProductionLogger.structure("Metadata response structure", {
       hasData: !!landingPageResponse.data,
@@ -91,18 +92,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   }
 }
 
-export default async function DynamicLandingPage({ params }: { params: { slug: string } }) {
-  const endTimer = ProductionLogger.startTimer(`DynamicLandingPage(${params.slug}) render`)
+export default async function DynamicLandingPage({ params }: { params: Promise<{ slug: string }> }) {
+  const resolvedParams = await params
+  const endTimer = ProductionLogger.startTimer(`DynamicLandingPage(${resolvedParams.slug}) render`)
   let landingPage: any = null;
 
-  ProductionLogger.log("DynamicLandingPage component called", { slug: params.slug })
+  ProductionLogger.log("DynamicLandingPage component called", { slug: resolvedParams.slug })
   ProductionLogger.environment()
 
   try {
     ProductionLogger.log("Attempting to fetch from Strapi...")
 
     // Obtener data de Strapi usando el slug dinámico
-    const landingPageResponse = await getLandingPage(params.slug)
+    const landingPageResponse = await getLandingPage(resolvedParams.slug)
 
     ProductionLogger.structure("Strapi response received", {
       hasData: !!landingPageResponse.data,
@@ -116,7 +118,7 @@ export default async function DynamicLandingPage({ params }: { params: { slug: s
 
     if (landingPage) {
       ProductionLogger.success("Landing page data loaded successfully", {
-        slug: params.slug,
+        slug: resolvedParams.slug,
         title: landingPage.title,
         dynamicZoneComponents: landingPage.dynamicZone?.length || 0,
         isFromStrapi: true
@@ -136,28 +138,73 @@ export default async function DynamicLandingPage({ params }: { params: { slug: s
       {
         __component: "layout.navbar",
         id: 1,
-        logo: null,
+        logo: {
+          data: {
+            id: 3,
+            attributes: {
+              name: "duxlogo.png",
+              alternativeText: "DUX Software Logo",
+              caption: "Logo DUX Software",
+              width: 240,
+              height: 80,
+              formats: {},
+              hash: "dux_logo_hash",
+              ext: ".png",
+              mime: "image/png",
+              size: 25.5,
+              url: "/duxlogo.png",
+              provider: "local",
+              createdAt: "2024-01-01T00:00:00.000Z",
+              updatedAt: "2024-01-01T00:00:00.000Z"
+            }
+          }
+        },
         logoAlt: "DUX Software",
         logoHref: "/",
         logoWidth: 120,
         logoHeight: 40,
         navItems: [
-          { id: "home", label: "Inicio", href: "/home" },
-          { id: "solutions", label: "Soluciones", href: "/solutions" },
-          { id: "prices", label: "Precios", href: "/pricing" },
-          { id: "resources", label: "Recursos", href: "/resources" },
-          { id: "about", label: "Nosotros", href: "/about" }
+          {
+            navItemId: "platform",
+            label: "Plataforma",
+            hasDropdown: true,
+            dropdownCategories: [
+              {
+                categoryId: "capabilities",
+                title: "SERVICIOS",
+                items: [
+                  {
+                    dropdownItemId: "web-dev",
+                    title: "Desarrollo Web",
+                    description: "Aplicaciones web modernas y escalables.",
+                    href: "/services/web",
+                    icon: "LayoutGrid"
+                  },
+                  {
+                    dropdownItemId: "mobile-dev",
+                    title: "Desarrollo Móvil",
+                    description: "Apps nativas y multiplataforma.",
+                    href: "/services/mobile",
+                    icon: "BarChart"
+                  }
+                ]
+              }
+            ]
+          },
+          { navItemId: "solutions", label: "Soluciones", href: "/solutions" },
+          { navItemId: "prices", label: "Precios", href: "/pricing" },
+          { navItemId: "about", label: "Nosotros", href: "/about" }
         ],
         ctaButtons: [
-          { id: "cta-primary", label: "Comenzar", href: "#contact", variant: "default" },
-          { id: "cta-secondary", label: "Demo", href: "#demo", variant: "outline" }
+          { ctaButtonId: "cta-primary", label: "Comenzar", href: "#contact", variant: "default" },
+          { ctaButtonId: "cta-secondary", label: "Demo", href: "#demo", variant: "outline" }
         ],
         backgroundColor: "white"
       },
       {
         __component: "sections.hero",
         id: 2,
-        title: `Página ${params.slug}`,
+        title: `Página ${resolvedParams.slug}`,
         subtitle: "Soluciones tecnológicas a medida",
         description: "Creamos aplicaciones web, móviles y sistemas empresariales que transforman tu visión en realidad digital.",
         ctaButtons: [
@@ -165,7 +212,11 @@ export default async function DynamicLandingPage({ params }: { params: { slug: s
           { id: "hero-secondary", label: "Ver Casos", href: "#cases", variant: "outline" }
         ],
         backgroundColor: "gradient",
-        textAlignment: "center"
+        textAlignment: "center",
+        bottomImage: {
+          url: "/placeholder-enterprise.svg",
+          alt: "Dashboard de software empresarial"
+        }
       }
     ]
   };
@@ -192,7 +243,7 @@ export default async function DynamicLandingPage({ params }: { params: { slug: s
 
   // Log final antes del render
   ProductionLogger.success("DynamicLandingPage render complete", {
-    slug: params.slug,
+    slug: resolvedParams.slug,
     navbarComponents: navbarComponents.length,
     heroComponents: heroComponents.length,
     contentComponents: contentComponents.length,
@@ -228,10 +279,10 @@ export default async function DynamicLandingPage({ params }: { params: { slug: s
 
       <main className="min-h-screen">
         {/* Renderizar Navbar */}
-        {navbarComponents.map((navbar: any) => {
+        {navbarComponents.map((navbar: any, index: number) => {
           return (
             <Navbar
-              key={navbar.id}
+              key={navbar.id || `navbar-${index}`}
               logo={{
                 src: navbar.logo ? getStrapiImageProps(navbar.logo).src : "/duxlogo.png",
                 alt: navbar.logoAlt || "DUX Software",
@@ -239,35 +290,8 @@ export default async function DynamicLandingPage({ params }: { params: { slug: s
                 width: navbar.logoWidth || 120,
                 height: navbar.logoHeight || 40
               }}
-              navItems={navbar.navItems && navbar.navItems.length > 0 ? navbar.navItems.map((item: any) => ({
-                id: item.navItemId || item.id,
-                label: item.label,
-                href: item.href
-              })) : [
-                { id: "home", label: "Inicio", href: "/home" },
-                { id: "solutions", label: "Soluciones", href: "/solutions" },
-                { id: "prices", label: "Precios", href: "/pricing" },
-                { id: "resources", label: "Recursos", href: "/resources" },
-                { id: "about", label: "Nosotros", href: "/about" },
-              ]}
-              ctaButtons={navbar.ctaButtons && navbar.ctaButtons.length > 0 ? navbar.ctaButtons.map((button: any) => ({
-                id: button.ctaButtonId || button.id,
-                label: button.label,
-                href: button.href,
-                variant: button.variant || "default"
-              })) : (navbar.ctaButton && Array.isArray(navbar.ctaButton) ? navbar.ctaButton.map((button: any) => ({
-                id: button.ctaButtonId || button.id,
-                label: button.label,
-                href: button.href,
-                variant: button.variant || "default"
-              })) : [
-                {
-                  id: "default-cta",
-                  label: "Contacto",
-                  href: "#contact",
-                  variant: "default"
-                }
-              ])}
+              navItems={navbar.navItems}
+              ctaButtons={navbar.ctaButtons}
               backgroundColor={navbar.backgroundColor || "white"}
             />
           )
@@ -275,7 +299,7 @@ export default async function DynamicLandingPage({ params }: { params: { slug: s
 
         {/* Renderizar Hero Sections */}
         {heroComponents.map((hero: any, index: number) => (
-          <section key={hero.id} id={index === 0 ? "home" : `hero-${hero.id}`}>
+          <section key={hero.id || `hero-${index}`} id={index === 0 ? "home" : `hero-${hero.id || index}`}>
             <HeroSection
               title={hero.title || "Título por defecto"}
               subtitle={hero.subtitle}
@@ -284,6 +308,7 @@ export default async function DynamicLandingPage({ params }: { params: { slug: s
               backgroundImage={hero.backgroundImage ? getStrapiImageProps(hero.backgroundImage).src : undefined}
               backgroundColor={hero.backgroundColor || "white"}
               textAlignment={hero.textAlignment || "center"}
+              bottomImage={hero.bottomImage ? getStrapiImageProps(hero.bottomImage) : undefined}
               seo={hero.seo || { h1: true }}
             />
           </section>
@@ -310,7 +335,7 @@ export default async function DynamicLandingPage({ params }: { params: { slug: s
           }
 
           return (
-            <section key={content.id} id={`section-${content.id}`}>
+            <section key={content.id || `content-${index}`} id={`section-${content.id || index}`}>
               <ContentSection
                 title={content.title || "Título de sección"}
                 subtitle={content.subtitle}

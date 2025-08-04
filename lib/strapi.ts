@@ -1,3 +1,4 @@
+
 import { 
   StrapiLandingPageResponse, 
   StrapiLandingPagesResponse,
@@ -72,52 +73,91 @@ export async function getLandingPage(slug: string): Promise<StrapiLandingPageRes
     return getMockLandingPage()
   }
 
-  // Strapi v5 - populate profundo para componentes con relaciones
-  const url = `${STRAPI_URL}/api/landing-pages?filters[slug][$eq]=${slug}&populate[dynamicZone][on][layout.navbar][populate]=*&populate[dynamicZone][on][sections.hero][populate]=*&populate[dynamicZone][on][sections.content][populate]=*`
-  
-  ProductionLogger.httpRequest('GET', url, {
-    'Authorization': 'Bearer [HIDDEN]',
-    'Content-Type': 'application/json'
-  })
+  // Sistema de fallback: probar diferentes niveles de populate (STRAPI V5 SYNTAX)
+  const populateOptions = [
+    // Opción 1: Sintaxis CORRECTA de Strapi v5 para dynamic zones con relaciones anidadas
+    `populate[dynamicZone][on][layout.navbar][populate][navItems][populate][dropdownCategories][populate][items]=true&populate[dynamicZone][on][layout.navbar][populate][navItems][populate][dropdownFooterActions]=true&populate[dynamicZone][on][layout.navbar][populate][ctaButtons]=true&populate[dynamicZone][on][layout.navbar][populate][logo]=true&populate[dynamicZone][on][sections.hero][populate][ctaButtons]=true&populate[dynamicZone][on][sections.hero][populate][bottomImage]=true&populate[dynamicZone][on][sections.content][populate][ctaButton]=true&populate[dynamicZone][on][sections.content][populate][image]=true`,
+    // Opción 2: Populate específico solo para navbar con sintaxis v5
+    `populate[dynamicZone][on][layout.navbar][populate][navItems][populate][dropdownCategories][populate][items]=true&populate[dynamicZone][on][layout.navbar][populate][navItems][populate][dropdownFooterActions]=true&populate[dynamicZone][on][layout.navbar][populate][ctaButtons]=true&populate[dynamicZone][on][layout.navbar][populate][logo]=true`,
+    // Opción 3: Populate básico con sintaxis v5 para cada componente
+    `populate[dynamicZone][on][layout.navbar][populate]=*&populate[dynamicZone][on][sections.hero][populate]=*&populate[dynamicZone][on][sections.content][populate]=*`,
+    // Opción 4: Populate básico de dynamicZone (sintaxis v4 - fallback)
+    `populate[dynamicZone][populate]=*`, 
+    // Opción 5: Sin populate como último recurso
+    `` 
+  ]
 
-  try {
-    ProductionLogger.log("Making fetch request...")
+  let response: Response | null = null
+  let lastError: string = ""
+
+  for (const [index, populateQuery] of populateOptions.entries()) {
+    const currentUrl = `${STRAPI_URL}/api/landing-pages?filters[slug][$eq]=${slug}${populateQuery ? '&' + populateQuery : ''}`
     
-    // Configurar timeout más corto para builds
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 segundos timeout
-    
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      next: { revalidate: 60 }, // Cache de 60 segundos - balance perfecto
-      signal: controller.signal,
-      // Removido cache: 'no-store' para permitir SSG
+    ProductionLogger.log(`🔄 Attempt ${index + 1}/5: Testing populate query`, { 
+      attempt: index + 1, 
+      populate: populateQuery || 'none',
+      url: currentUrl.replace(token, '[HIDDEN]')
     })
     
-    clearTimeout(timeoutId)
-
-    ProductionLogger.httpResponse(response.status, response.statusText)
-
-    if (!response.ok) {
-      ProductionLogger.error(`Strapi response error: ${response.status} ${response.statusText}`)
+    try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000)
       
-      // Intentar leer el cuerpo del error
-      try {
-        const errorBody = await response.text()
-        ProductionLogger.error('Error body', errorBody)
-      } catch (e) {
-        ProductionLogger.warn('Could not read error body')
+      response = await fetch(currentUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        next: { revalidate: 60 },
+        signal: controller.signal,
+      })
+      
+      clearTimeout(timeoutId)
+      ProductionLogger.httpResponse(response.status, response.statusText)
+
+      if (response.ok) {
+        ProductionLogger.log(`✅ Success with populate attempt ${index + 1}:`, populateQuery || 'no populate')
+        break // Salir del loop si funciona
+      } else {
+        // Intentar leer el error para debug
+        try {
+          const errorText = await response.text()
+          lastError = errorText
+          ProductionLogger.warn(`❌ Attempt ${index + 1} failed:`, {
+            status: response.status,
+            error: errorText || "Empty error body"
+          })
+        } catch (e) {
+          ProductionLogger.warn(`❌ Attempt ${index + 1} failed - couldn't read error:`, response.status)
+        }
+        
+        // Si no es el último intento, continuar
+        if (index < populateOptions.length - 1) {
+          ProductionLogger.log(`🔄 Trying next populate option...`)
+          continue
+        }
       }
+    } catch (fetchError) {
+      const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError)
+      ProductionLogger.warn(`❌ Fetch error on attempt ${index + 1}:`, errorMessage)
+      lastError = errorMessage
       
-      // En lugar de throw, retornar mock data
-      ProductionLogger.warn('Returning mock data due to HTTP error')
-      endTimer()
-      return getMockLandingPage()
+      // Si no es el último intento, continuar
+      if (index < populateOptions.length - 1) {
+        continue
+      }
     }
+  }
 
+  // Si llegamos aquí y response no es ok, retornar mock data
+  if (!response || !response.ok) {
+    ProductionLogger.error('❌ All populate attempts failed. Last error:', lastError)
+    ProductionLogger.warn('⚠️ Returning mock data due to HTTP error')
+    endTimer()
+    return getMockLandingPage()
+  }
+
+  try {
     ProductionLogger.log("Parsing JSON response...")
     const data = await response.json()
     
@@ -179,7 +219,9 @@ export async function getLandingPage(slug: string): Promise<StrapiLandingPageRes
 // Función para obtener todas las landing pages
 export async function getAllLandingPages(): Promise<StrapiLandingPagesResponse> {
   try {
-    const response = await fetchAPI("/landing-pages?populate[dynamicZone][on][layout.navbar][populate]=*&populate[dynamicZone][on][sections.hero][populate]=*&populate[dynamicZone][on][sections.content][populate]=*")
+    // Usar sintaxis correcta de Strapi v5 para dynamic zones con relaciones anidadas
+    const populateQuery = `populate[dynamicZone][on][layout.navbar][populate][navItems][populate][dropdownCategories][populate][items]=true&populate[dynamicZone][on][layout.navbar][populate][navItems][populate][dropdownFooterActions]=true&populate[dynamicZone][on][layout.navbar][populate][ctaButtons]=true&populate[dynamicZone][on][layout.navbar][populate][logo]=true&populate[dynamicZone][on][sections.hero][populate][ctaButtons]=true&populate[dynamicZone][on][sections.hero][populate][bottomImage]=true&populate[dynamicZone][on][sections.content][populate][ctaButton]=true&populate[dynamicZone][on][sections.content][populate][image]=true`
+    const response = await fetchAPI(`/landing-pages?${populateQuery}`)
     return response
   } catch (error) {
     console.error("Error fetching all landing pages:", error)
@@ -271,18 +313,145 @@ function getMockLandingPage(): StrapiLandingPageResponse {
         logoWidth: 120,
         logoHeight: 40,
         navItems: [
-          { id: "home", label: "Inicio", href: "#home" },
-          { id: "solutions", label: "Soluciones", href: "#solutions" },
-          { id: "prices", label: "Precios", href: "#prices" },
-          { id: "resources", label: "Recursos", href: "#resources" },
-          { id: "about", label: "Nosotros", href: "#about" }
+          {
+            navItemId: "platform",
+            label: "Plataforma",
+            hasDropdown: true,
+            dropdownCategories: [
+              {
+                categoryId: "capabilities",
+                title: "CAPABILITIES",
+                items: [
+                  {
+                    dropdownItemId: "create-apis",
+                    title: "Crear APIs",
+                    description: "Diseña APIs REST y GraphQL para cualquier frontend.",
+                    href: "/platform/create-apis",
+                    icon: "Code2"
+                  },
+                  {
+                    dropdownItemId: "customization",
+                    title: "Personalización",
+                    description: "Personaliza tu CMS para cumplir los requisitos de tu proyecto.",
+                    href: "/platform/customization",
+                    icon: "Settings"
+                  },
+                  {
+                    dropdownItemId: "hosting",
+                    title: "Hosting",
+                    description: "Aloja tus proyectos en robustas y seguras infraestructuras.",
+                    href: "/platform/hosting",
+                    icon: "Cloud"
+                  }
+                ]
+              },
+              {
+                categoryId: "management",
+                title: "GESTIÓN Y COLABORACIÓN",
+                items: [
+                  {
+                    dropdownItemId: "content-management",
+                    title: "Gestión de Contenido",
+                    description: "Crea, edita y publica contenido fácilmente.",
+                    href: "/platform/content-management",
+                    icon: "FileText"
+                  },
+                  {
+                    dropdownItemId: "collaboration",
+                    title: "Colaboración",
+                    description: "Trabaja en equipo de forma sencilla en código y contenido.",
+                    href: "/platform/collaboration",
+                    icon: "Users"
+                  },
+                  {
+                    dropdownItemId: "security",
+                    title: "Seguridad",
+                    description: "Implementa medidas de seguridad robustas para proteger tu información.",
+                    href: "/platform/security",
+                    icon: "Shield"
+                  }
+                ]
+              },
+              {
+                categoryId: "product",
+                title: "PRODUCTO Y CARACTERÍSTICAS",
+                items: [
+                  {
+                    dropdownItemId: "cloud",
+                    title: "Cloud",
+                    description: "Hosting PaaS para proyectos Dux.",
+                    href: "/product/cloud",
+                    icon: "Cloud"
+                  },
+                  {
+                    dropdownItemId: "enterprise",
+                    title: "Edición Empresarial",
+                    description: "Una edición lista para empresas.",
+                    href: "/product/enterprise",
+                    icon: "Building"
+                  },
+                  {
+                    dropdownItemId: "market",
+                    title: "Dux Market",
+                    description: "Mercado de plugins e integraciones.",
+                    href: "/product/market",
+                    icon: "ShoppingCart"
+                  },
+                  {
+                    dropdownItemId: "features",
+                    title: "Todas las Características",
+                    description: "Descubre todas las características disponibles en Dux hoy.",
+                    href: "/product/features",
+                    icon: "LayoutGrid"
+                  }
+                ]
+              }
+            ],
+            dropdownFooterActions: [
+              {
+                footerActionId: "contact-sales",
+                label: "Contactar Ventas",
+                href: "/contact",
+                icon: "MessageCircle"
+              },
+              {
+                footerActionId: "demo",
+                label: "Demo Interactivo",
+                href: "/interactive-demo",
+                icon: "Play"
+              },
+              {
+                footerActionId: "host-project",
+                label: "Alojar tu Proyecto",
+                href: "/host-project",
+                icon: "Rocket"
+              }
+            ]
+          },
+          { navItemId: "solutions", label: "Soluciones", href: "/solutions" },
+          { navItemId: "resources", label: "Recursos", href: "/resources" },
+          { navItemId: "prices", label: "Precios", href: "/pricing" }
         ],
-        ctaButton: {
-          id: "cta-nav",
-          label: "Comenzar",
-          href: "#contact",
-          variant: "default"
-        },
+        ctaButtons: [
+          {
+            ctaButtonId: "login",
+            label: "Login",
+            href: "/login",
+            variant: "ghost"
+          },
+          {
+            ctaButtonId: "register",
+            label: "Registrarse",
+            href: "/register",
+            variant: "outline"
+          },
+          {
+            ctaButtonId: "demo",
+            label: "Ver Demo",
+            href: "/demo",
+            variant: "default"
+          }
+        ],
         backgroundColor: "white"
       },
       {
@@ -293,13 +462,13 @@ function getMockLandingPage(): StrapiLandingPageResponse {
         description: "Creamos aplicaciones web, móviles y sistemas empresariales que impulsan el crecimiento de tu negocio con tecnología de vanguardia.",
         ctaButtons: [
           {
-            id: "cta-hero-1",
+            ctaButtonId: "cta-hero-1",
             label: "Comenzar Proyecto",
             href: "#contact",
             variant: "default"
           },
           {
-            id: "cta-hero-2",
+            ctaButtonId: "cta-hero-2",
             label: "Ver Soluciones",
             href: "#solutions",
             variant: "outline"
@@ -307,6 +476,27 @@ function getMockLandingPage(): StrapiLandingPageResponse {
         ],
         backgroundColor: "gradient",
         textAlignment: "center",
+        bottomImage: {
+          data: {
+            id: 5,
+            attributes: {
+              name: "enterprise-dashboard.svg",
+              alternativeText: "Dashboard de software empresarial",
+              caption: "Dashboard Empresarial",
+              width: 1200,
+              height: 800,
+              formats: {},
+              hash: "enterprise_dashboard_hash",
+              ext: ".svg",
+              mime: "image/svg+xml",
+              size: 85.3,
+              url: "/placeholder-enterprise.svg",
+              provider: "local",
+              createdAt: "2024-01-01T00:00:00.000Z",
+              updatedAt: "2024-01-01T00:00:00.000Z"
+            }
+          }
+        },
         seo: {
           h1: true,
           keywords: ["desarrollo software", "aplicaciones web", "software empresarial"]
@@ -319,7 +509,7 @@ function getMockLandingPage(): StrapiLandingPageResponse {
         subtitle: "Aplicaciones Web",
         description: "Creamos aplicaciones web robustas y escalables utilizando las últimas tecnologías como React, Next.js y Node.js.\n\nNuestras soluciones están optimizadas para rendimiento, SEO y experiencia de usuario, garantizando que tu presencia digital destaque en el mercado.",
         ctaButton: {
-          id: "cta-web",
+          ctaButtonId: "cta-web",
           label: "Conocer Más",
           href: "#contact",
           variant: "default"
@@ -357,7 +547,7 @@ function getMockLandingPage(): StrapiLandingPageResponse {
         subtitle: "Sistemas Empresariales",
         description: "Desarrollamos sistemas de gestión empresarial (ERP) y software personalizado que automatiza tus procesos de negocio.\n\nIntegramos soluciones que mejoran la eficiencia operativa y proporcionan insights valiosos para la toma de decisiones estratégicas.",
         ctaButton: {
-          id: "cta-enterprise",
+          ctaButtonId: "cta-enterprise",
           label: "Solicitar Demo",
           href: "#contact",
           variant: "default"

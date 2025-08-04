@@ -3,7 +3,7 @@ import Link from "next/link"
 import Image from "next/image"
 
 interface CtaButton {
-  id: string
+  ctaButtonId: string
   label: string
   href: string
   variant?: "default" | "outline" | "ghost"
@@ -22,6 +22,11 @@ interface HeroSectionProps {
     h1?: boolean
     keywords?: string[]
   }
+  // Nueva prop para la imagen inferior
+  bottomImage?: {
+    src: string
+    alt?: string
+  }
 }
 
 export function HeroSection({
@@ -33,14 +38,15 @@ export function HeroSection({
   backgroundColor = "white",
   textAlignment = "center",
   className = "",
-  seo = { h1: true }
+  seo = { h1: true },
+  bottomImage
 }: HeroSectionProps) {
   const getBackgroundClass = () => {
     switch (backgroundColor) {
       case "blue":
         return "bg-blue-600 text-white"
       case "gradient":
-        return "bg-gradient-to-br from-blue-600 to-blue-800 text-white"
+        return "bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 text-gray-900"
       default:
         return "bg-white text-gray-900"
     }
@@ -76,7 +82,7 @@ export function HeroSection({
 
   return (
     <section
-      className={`relative min-h-screen flex items-center justify-center py-20 px-4 ${getBackgroundClass()} ${className}`}
+      className={`relative min-h-screen flex items-center justify-center pt-32 pb-20 px-4 ${getBackgroundClass()} ${className}`}
       style={backgroundImage ? {
         backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url(${backgroundImage})`,
         backgroundSize: 'cover',
@@ -112,7 +118,7 @@ export function HeroSection({
               }`}>
               {ctaButtons.map((button, index) => (
                 <Button
-                  key={button.id}
+                  key={button.ctaButtonId || `button-${index}`}
                   asChild
                   className={getCtaButtonClass(button.variant)}
                   size="lg"
@@ -128,9 +134,21 @@ export function HeroSection({
             </div>
           )}
         </div>
+
+        {/* Imagen inferior */}
+        {bottomImage && (
+          <div className="pt-16 max-w-5xl mx-auto">
+            <Image
+              src={bottomImage.src}
+              alt={bottomImage.alt || "Imagen hero"}
+              width={1200}
+              height={600}
+              className="w-full rounded-2xl shadow-2xl border border-gray-200 object-cover"
+              priority
+            />
+          </div>
+        )}
       </div>
-
-
     </section>
   )
 }
