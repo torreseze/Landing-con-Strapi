@@ -42,14 +42,8 @@ export function HeroSection({
   bottomImage
 }: HeroSectionProps) {
   const getBackgroundClass = () => {
-    switch (backgroundColor) {
-      case "blue":
-        return "bg-blue-600 text-white"
-      case "gradient":
-        return "bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 text-gray-900"
-      default:
-        return "bg-white text-gray-900"
-    }
+    // Sin importar el backgroundColor que venga de Strapi, usamos el nuevo diseño
+    return "bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 text-gray-900"
   }
 
   const getAlignmentClass = () => {
@@ -64,17 +58,18 @@ export function HeroSection({
   }
 
   const getCtaButtonClass = (variant: string = "default") => {
-    const baseClass = "px-8 py-3 text-lg font-semibold transition-all duration-300"
+    const baseClass = "px-8 py-3 text-sm font-semibold transition-all duration-300 rounded-lg"
 
     switch (variant) {
       case "outline":
-        return backgroundColor === "white"
-          ? `${baseClass} border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white`
-          : `${baseClass} border-2 border-white text-black bg-white hover:bg-orange-600 hover:text-white`
+        // Botón secundario: fondo blanco, línea azul, texto azul
+        return `${baseClass} bg-white border-2 border-[#0763E7] text-[#0763E7] hover:bg-[#0763E7] hover:text-white`
       case "ghost":
+        // Mantener el estilo actual para ghost
         return `${baseClass} text-blue-600 hover:bg-blue-50`
       default:
-        return `${baseClass} bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl`
+        // Botón principal: fondo azul, línea azul, texto blanco
+        return `${baseClass} bg-[#0763E7] border-2 border-[#0763E7] text-white hover:bg-[#0763E7]/90 shadow-lg hover:shadow-xl`
     }
   }
 
@@ -94,20 +89,20 @@ export function HeroSection({
     >
       <div className="container mx-auto max-w-6xl">
         <div className={`space-y-8 ${getAlignmentClass()}`}>
-          {/* Subtitle */}
+          {/* Encabezado - H1 */}
           {subtitle && (
-            <p className="text-2xl font-medium uppercase tracking-wider">
+            <h1 className="text-sm font-medium text-[#374151] bg-[#fcfdff] px-4 py-2 rounded-lg inline-block">
               {subtitle}
-            </p>
+            </h1>
           )}
 
-          {/* Title */}
-          <TitleTag className="text-4xl md:text-6xl lg:text-7xl font-bold leading-tight">
+          {/* Título - H2 */}
+          <TitleTag className="text-6xl md:text-7xl lg:text-8xl font-bold leading-tight text-[#12385B]">
             {title}
           </TitleTag>
 
-          {/* Description */}
-          <p className="text-xl md:text-2xl leading-relaxed max-w-4xl mx-auto opacity-90">
+          {/* Subtítulo - P */}
+          <p className="text-lg md:text-xl leading-relaxed max-w-4xl mx-auto text-[#4B5563]">
             {description}
           </p>
 
@@ -143,7 +138,7 @@ export function HeroSection({
               alt={bottomImage.alt || "Imagen hero"}
               width={1200}
               height={600}
-              className="w-full rounded-2xl shadow-2xl border border-gray-200 object-cover"
+              className="w-full rounded-lg shadow-2xl border border-gray-200 object-cover"
               priority
             />
           </div>
